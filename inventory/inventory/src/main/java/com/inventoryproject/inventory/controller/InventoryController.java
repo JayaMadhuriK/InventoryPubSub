@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.inventoryproject.inventory.model.ExceptionResponse;
 import com.inventoryproject.inventory.model.Inventory;
 import com.inventoryproject.inventory.view.InventoryService;
 
@@ -22,12 +23,8 @@ public class InventoryController {
 	InventoryService inventoryService;
 	
 	@PutMapping("/updatestock")
-	public String updateStock(@RequestBody List<Inventory> list) {
-		boolean response = inventoryService.updateStock(list);
-		if(response != true) {
-			return "Error in updation";
-		}
-		return "Successfully Updated";
+	public boolean updateStock(@RequestBody List<Inventory> list) {
+		return inventoryService.updateStock(list);
 	}
 	@GetMapping("/fetchproductids")
 	public List<Inventory> fetchQuantity(@RequestParam List<String> product_ids) {
@@ -35,9 +32,13 @@ public class InventoryController {
 		return inventoryList;
 	}
 	@PostMapping("/createproduct")
-	public Inventory createProduct(@RequestBody Inventory inventory) {
-		Inventory inv = inventoryService.createProduct(inventory);
-		return inv;
+	public Object createProduct(@RequestBody Inventory inventory) {
+		try {
+			Inventory inv = inventoryService.createProduct(inventory);
+			return inv;
+		}catch(ExceptionResponse ex) {
+			return ex.getMessage();
+		}
 	}
 
 }

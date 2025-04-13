@@ -8,6 +8,8 @@ import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+
 @Entity
 public class OrderItems {
 	@Id
@@ -15,6 +17,7 @@ public class OrderItems {
 	private Long id;
 	@ManyToOne
 	@JoinColumn(name = "order_id", nullable = false)
+    @JsonBackReference
 	private Orders order;
 	@Column(nullable = false)
 	private String product_id;

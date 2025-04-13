@@ -1,6 +1,5 @@
 package com.inventoryproject.order.model;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -12,9 +11,8 @@ import javax.persistence.Enumerated;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
-import javax.persistence.PrePersist;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Entity
 public class Orders {
@@ -25,12 +23,12 @@ public class Orders {
 	private String uid;
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
-	@JsonIgnore
 	private OrderStatus status;
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
-	private List<OrderItems> orderItems = new ArrayList<>();
-	@PrePersist
-	public void generateId() {
+	@JsonManagedReference
+	private List<OrderItems> orderItems;
+	
+	public Orders() {
 		if(order_id == null) {
 			order_id = UUID.randomUUID();
 		}
