@@ -4,17 +4,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import com.inventoryproject.order.model.ExceptionResponse;
 import com.inventoryproject.order.model.InventoryDto;
 import com.inventoryproject.order.model.OrderItems;
 import com.inventoryproject.order.model.OrderStatus;
 import com.inventoryproject.order.model.Orders;
+import com.inventoryproject.order.pubsub.PubSubPublisherService;
+import com.inventoryproject.order.pubsub.PubSubSubscriberService;
 import com.inventoryproject.order.repository.OrderItemsRepo;
 import com.inventoryproject.order.repository.OrdersRepo;
 import com.inventoryproject.order.view.OrdersService;
@@ -26,13 +28,11 @@ public class OrdersServiceImplementation implements OrdersService{
 	OrdersRepo ordersRepo;
 	@Autowired
 	OrderItemsRepo orderItemsRepo;
-	private final WebClient webClient;
+	@Autowired
+	PubSubPublisherService pubSubPublisherService;
+	@Autowired
+	PubSubSubscriberService pubSubSubscriberService;
 	
-	public OrdersServiceImplementation(WebClient.Builder webClientBuilder) {
-		this.webClient = webClientBuilder
-				.baseUrl("http://localhost:6001")
-				.build();
-	}
 	
 	@Override
 	public Object createOrder(Orders orders) {
@@ -40,20 +40,31 @@ public class OrdersServiceImplementation implements OrdersService{
 			if(orders.getUid() == null || orders.getUid().isBlank()) {
 				throw new ExceptionResponse("invalid user id");
 			}else {
+				List<OrderItems> orderItems = orders.getOrderItems();
+//				System.out.println("---------------------"+orders.getOrderItems().toString()+"------------------------------");
+				if(orderItems == null || orderItems.isEmpty()) {
+//					System.out.println("---------------------"+orders.getOrderItems().toString()+"------------------------------");
+					orders.setStatus(OrderStatus.NON_SERVICEABLE);
+			    	ordersRepo.save(orders);
+			    	throw new ExceptionResponse("Atleast one product must have in cart");
+				}
 				orders.setStatus(OrderStatus.SERVICEABLE);
 				Set<String> productIdsList = orders.getOrderItems().stream()
 						.map(OrderItems::getProduct_id)
 						.collect(Collectors.toSet());
-				List<InventoryDto> fetchQuantity = webClient
-						.get()
-						.uri(builder -> builder
-						.path("/api/inventory/fetchproductids")
-						.queryParam("product_ids", productIdsList)
-						.build())
-						.retrieve()
-						.bodyToFlux(InventoryDto.class)
-						.collectList()
-						.block();
+				pubSubPublisherService.publishInventory(productIdsList);
+				CompletableFuture<List<InventoryDto>> result = pubSubSubscriberService.subscribeInventoryResponse();
+//				List<InventoryDto> fetchQuantity = webClient
+//						.get()
+//						.uri(builder -> builder
+//						.path("/api/inventory/fetchproductids")
+//						.queryParam("product_ids", productIdsList)
+//						.build())
+//						.retrieve()
+//						.bodyToFlux(InventoryDto.class)
+//						.collectList()
+//						.block();
+				List<InventoryDto> fetchQuantity = result.join();
 				if(productIdsList.size() != fetchQuantity.size()) {
 					orders.setStatus(OrderStatus.NON_SERVICEABLE);
 					for(OrderItems item : orders.getOrderItems()) {
@@ -94,12 +105,14 @@ public class OrdersServiceImplementation implements OrdersService{
 			//		    }
 					}
 					if(orders.getStatus() == OrderStatus.SERVICEABLE) {
-						boolean response = webClient.put()
-						.uri("/api/inventory/updatestock")
-						.bodyValue(updatedList)
-						.retrieve()
-						.bodyToMono(Boolean.class)
-						.block();
+						pubSubPublisherService.publishUpdateStock(updatedList);
+						boolean response = pubSubSubscriberService.subscribeUpdateStockResponse();
+//						boolean response = webClient.put()
+//						.uri("/api/inventory/updatestock")
+//						.bodyValue(updatedList)
+//						.retrieve()
+//						.bodyToMono(Boolean.class)
+//						.block();
 						System.out.println("------------------"+response+"-------------------");
 						if(response == true) {
 							for(OrderItems item : orders.getOrderItems()) {
