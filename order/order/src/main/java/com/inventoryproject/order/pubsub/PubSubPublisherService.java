@@ -17,11 +17,15 @@ public class PubSubPublisherService {
 	private final Gson gson = new Gson();
 	
 	public void publishInventory(Set<String> productIds) {
+		System.out.println("Inside publish inventory pubsubpublisherservice"+productIds);
 		String message = gson.toJson(productIds);
 		pubSubTemplate.publish("inventory", message);
+		System.out.println("Inside publish inventory message pubsubpublisherservice"+message);
 	}
 	public void publishUpdateStock(List<InventoryDto> stockUpdates) {
+		System.out.println("inside publishupdatestock order stockupdates"+stockUpdates);
 		String message = gson.toJson(stockUpdates);
+		System.out.println("inside publishupdatestock order before publish message"+message);
 		pubSubTemplate.publish("updateStock", message);
 	}
 }

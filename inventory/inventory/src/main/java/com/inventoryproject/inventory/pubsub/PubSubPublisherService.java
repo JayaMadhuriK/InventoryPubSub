@@ -16,12 +16,16 @@ public class PubSubPublisherService {
 	private final Gson gson = new Gson();
 	
 	public void publishInventoryResponse(List<Inventory> response) {
+		System.out.println("Inside publish inventory response inventory response"+response);
 		String message = gson.toJson(response);
+		System.out.println("Inside publish inventory response inventory message"+message);
 		pubSubTemplate.publish("inventory-response", message);
 	}
 	
 	public void publishUpdateStockResponse(Boolean response) {
+		System.out.println("Inside publish update stock inventory response"+response);
 		String message = gson.toJson(response);
+		System.out.println("Inside publish update stock inventory message"+message);
 		pubSubTemplate.publish("update-response", message);
 	}
 }

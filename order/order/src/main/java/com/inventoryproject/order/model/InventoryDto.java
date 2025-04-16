@@ -9,6 +9,11 @@ public class InventoryDto {
 	public String getProduct_id() {
 		return product_id;
 	}
+	
+	public InventoryDto() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
 	public InventoryDto(String product_id, int stock) {
 		super();
 		this.product_id = product_id;

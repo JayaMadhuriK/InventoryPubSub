@@ -4,7 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,6 @@ import com.inventoryproject.order.model.OrderItems;
 import com.inventoryproject.order.model.OrderStatus;
 import com.inventoryproject.order.model.Orders;
 import com.inventoryproject.order.pubsub.PubSubPublisherService;
-import com.inventoryproject.order.pubsub.PubSubSubscriberService;
 import com.inventoryproject.order.repository.OrderItemsRepo;
 import com.inventoryproject.order.repository.OrdersRepo;
 import com.inventoryproject.order.view.OrdersService;
@@ -30,20 +30,19 @@ public class OrdersServiceImplementation implements OrdersService{
 	OrderItemsRepo orderItemsRepo;
 	@Autowired
 	PubSubPublisherService pubSubPublisherService;
-	@Autowired
-	PubSubSubscriberService pubSubSubscriberService;
 	
+	private final List<InventoryDto> inventoryListStore = new CopyOnWriteArrayList<>();
+	private final AtomicBoolean updateResult = new AtomicBoolean(false);
 	
 	@Override
 	public Object createOrder(Orders orders) {
+		System.out.println("Calling createOrder orderserviceimpl");
 		try {
 			if(orders.getUid() == null || orders.getUid().isBlank()) {
 				throw new ExceptionResponse("invalid user id");
 			}else {
 				List<OrderItems> orderItems = orders.getOrderItems();
-//				System.out.println("---------------------"+orders.getOrderItems().toString()+"------------------------------");
 				if(orderItems == null || orderItems.isEmpty()) {
-//					System.out.println("---------------------"+orders.getOrderItems().toString()+"------------------------------");
 					orders.setStatus(OrderStatus.NON_SERVICEABLE);
 			    	ordersRepo.save(orders);
 			    	throw new ExceptionResponse("Atleast one product must have in cart");
@@ -52,19 +51,10 @@ public class OrdersServiceImplementation implements OrdersService{
 				Set<String> productIdsList = orders.getOrderItems().stream()
 						.map(OrderItems::getProduct_id)
 						.collect(Collectors.toSet());
+				System.out.println("productIds list before publishing orderservcieimpl"+productIdsList);
 				pubSubPublisherService.publishInventory(productIdsList);
-				CompletableFuture<List<InventoryDto>> result = pubSubSubscriberService.subscribeInventoryResponse();
-//				List<InventoryDto> fetchQuantity = webClient
-//						.get()
-//						.uri(builder -> builder
-//						.path("/api/inventory/fetchproductids")
-//						.queryParam("product_ids", productIdsList)
-//						.build())
-//						.retrieve()
-//						.bodyToFlux(InventoryDto.class)
-//						.collectList()
-//						.block();
-				List<InventoryDto> fetchQuantity = result.join();
+				List<InventoryDto> fetchQuantity = getInventoryDto();
+				System.out.println("orderservice impl getting list from getInventorydto"+getInventoryDto());
 				if(productIdsList.size() != fetchQuantity.size()) {
 					orders.setStatus(OrderStatus.NON_SERVICEABLE);
 					for(OrderItems item : orders.getOrderItems()) {
@@ -85,6 +75,7 @@ public class OrdersServiceImplementation implements OrdersService{
 					        .findFirst()
 					        .orElse(null);
 					    if(requestedQty < 1) {
+					    	System.out.println("requestedqty orderserviceimpl"+requestedQty);
 					    	orders.setStatus(OrderStatus.NON_SERVICEABLE);
 					    	for(OrderItems item : orders.getOrderItems()) {
 								item.setOrder(orders);
@@ -92,6 +83,7 @@ public class OrdersServiceImplementation implements OrdersService{
 					    	ordersRepo.save(orders);
 					    	throw new ExceptionResponse("Quantity should be more than zero");
 					    }else if (match == null || match.getStock() < requestedQty) {
+					    	System.out.println("orderservice impl if stock is less than qty"+(match.getStock() < requestedQty));
 					    	orders.setStatus(OrderStatus.NON_SERVICEABLE);
 					    	for(OrderItems item : orders.getOrderItems()) {
 								item.setOrder(orders);
@@ -99,26 +91,20 @@ public class OrdersServiceImplementation implements OrdersService{
 					    	ordersRepo.save(orders);
 					    	throw new ExceptionResponse("Sufficient stock not available for "+productId);
 					    }
-			//		    if (match!=null && match.getStock() < requested.getQuantity()) {
 				    	InventoryDto inventoryDto = new InventoryDto(productId,match.getStock() - requestedQty);
+				    	System.out.println("after deducting stock inventory values"+inventoryDto);
 				    	updatedList.add(inventoryDto);
-			//		    }
 					}
+					System.out.println("status of order"+orders.getStatus());
 					if(orders.getStatus() == OrderStatus.SERVICEABLE) {
+						System.out.println("before publishing to updatestock"+updatedList);
 						pubSubPublisherService.publishUpdateStock(updatedList);
-						boolean response = pubSubSubscriberService.subscribeUpdateStockResponse();
-//						boolean response = webClient.put()
-//						.uri("/api/inventory/updatestock")
-//						.bodyValue(updatedList)
-//						.retrieve()
-//						.bodyToMono(Boolean.class)
-//						.block();
-						System.out.println("------------------"+response+"-------------------");
+						boolean response = getUpdateStockResponse();
+						System.out.println("after subscribe to updatestock"+response);
 						if(response == true) {
 							for(OrderItems item : orders.getOrderItems()) {
 								item.setOrder(orders);
 							}
-	//						System.out.println("------------------"+response+"-------------------");
 							ordersRepo.save(orders);
 						}
 					}
@@ -128,6 +114,30 @@ public class OrdersServiceImplementation implements OrdersService{
 			return ex.getMessage();
 		}
 		return orders;
+	}
+
+	@Override
+	public List<InventoryDto> getInventoryDto() {
+		System.out.println("callin get inventory dto in orderservic impl");
+		return new ArrayList<>(inventoryListStore);
+	}
+
+	@Override
+	public void addInventoryDto(List<InventoryDto> list) {
+		System.out.println("callin add dto in orderservic impl"+list);
+		inventoryListStore.addAll(list);
+	}
+
+	@Override
+	public boolean getUpdateStockResponse() {
+		System.out.println("callin get update stock in orderservic impl");
+		return updateResult.get();
+	}
+
+	@Override
+	public void addUpdateStockResponse(boolean result) {
+		System.out.println("callin add update stock in orderservic impl"+result);
+		updateResult.set(result);
 	}
 
 }

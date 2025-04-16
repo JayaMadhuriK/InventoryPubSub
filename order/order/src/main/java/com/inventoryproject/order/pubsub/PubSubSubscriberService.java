@@ -1,7 +1,8 @@
 package com.inventoryproject.order.pubsub;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+
+import javax.annotation.PostConstruct;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -10,41 +11,77 @@ import com.google.cloud.spring.pubsub.core.PubSubTemplate;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.inventoryproject.order.model.InventoryDto;
+import com.inventoryproject.order.view.OrdersService;
 
 @Component
 public class PubSubSubscriberService {
 	private final Gson gson = new Gson();
 	@Autowired
 	private PubSubTemplate pubSubTemplate;
+	@Autowired
+	OrdersService orderService;
 	
-	
-	public CompletableFuture<List<InventoryDto>> subscribeInventoryResponse() {
-		CompletableFuture<List<InventoryDto>> inventoryDtoFuture = new CompletableFuture<>();
-		pubSubTemplate.subscribe("inventory-response-sub", message -> {
-			String payload = message.getPubsubMessage().getData().toStringUtf8();
-			List<InventoryDto> list = gson.fromJson(payload, new TypeToken<List<InventoryDto>>(){}.getType());
-			System.out.println("stock updates"+payload);
-			inventoryDtoFuture.complete(list);
-			message.ack();
-		});
-		return inventoryDtoFuture;
+	@PostConstruct
+	public void init() {
+		subscribeInventoryResponse();
+		subscribeUpdateStockResponse();
+		subscribeInventoryResponseDlq();
+		subscribeUpdateStockResponseDlq();
 	}
 	
-	
-	public boolean subscribeUpdateStockResponse() {
-		CompletableFuture<Boolean> inventoryDtoFuture = new CompletableFuture<>();
-		pubSubTemplate.subscribe("update-response-sub", message -> {
+	public void subscribeInventoryResponse() {
+		System.out.println("Inside subscribe inventory response order");
+		pubSubTemplate.subscribe("inventory-response-sub", message -> {
 			String payload = message.getPubsubMessage().getData().toStringUtf8();
-			boolean response = Boolean.parseBoolean(payload);
-			System.out.println("stock updates"+payload);
-			inventoryDtoFuture.complete(response);
+			try {
+				System.out.println("Inside subscribe inventory response order payload"+payload);
+				List<InventoryDto> list = gson.fromJson(payload, new TypeToken<List<InventoryDto>>(){}.getType());
+				System.out.println("Inside subscribe inventory response order list"+list);
+				orderService.addInventoryDto(list);
+				message.ack();
+			}catch(Exception e) {
+				System.out.println("Error processing inventory response message"+e.getMessage());
+				message.nack();
+			}
+		});
+	}
+	
+	public void subscribeInventoryResponseDlq() {
+		System.out.println("Inside subscribe inventory response dlq");
+		pubSubTemplate.subscribe("inventory-response-dlq-sub", message -> {
+			String payload = message.getPubsubMessage().getData().toStringUtf8();
+			List<InventoryDto> list = gson.fromJson(payload, new TypeToken<List<InventoryDto>>(){}.getType());
+			orderService.addInventoryDto(list);
+			System.out.println("inventory list"+list);
 			message.ack();
 		});
-		try {
-			return inventoryDtoFuture.get();
-		} catch (Exception e) {
-			e.printStackTrace();
-			return false;
-		} 
+	}
+	
+	public void subscribeUpdateStockResponse() {
+		System.out.println("Inside subscribe updatestcok response order");
+		pubSubTemplate.subscribe("update-response-sub", message -> {
+			String payload = message.getPubsubMessage().getData().toStringUtf8();
+			try {
+				System.out.println("Inside subscribe updatestcok response payload"+payload);
+				boolean response = Boolean.parseBoolean(payload);
+				System.out.println("Inside subscribe updatestcok response response"+response);
+				orderService.addUpdateStockResponse(response);
+				message.ack();
+			}catch(Exception e) {
+				System.out.println("Error processing updatestock message"+e.getMessage());
+				message.nack();
+			}
+		});
+	}
+	
+	public void subscribeUpdateStockResponseDlq() {
+		System.out.println("Inside subscribe update stock response dlq");
+		pubSubTemplate.subscribe("update-response-dlq-sub", message -> {
+			String payload = message.getPubsubMessage().getData().toStringUtf8();
+			boolean response = Boolean.parseBoolean(payload);
+			orderService.addUpdateStockResponse(response);
+			System.out.println("stock updates"+response);
+			message.ack();
+		});
 	}
 }

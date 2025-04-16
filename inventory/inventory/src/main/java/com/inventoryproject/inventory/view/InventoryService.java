@@ -6,6 +6,6 @@ import com.inventoryproject.inventory.model.Inventory;
 
 public interface InventoryService {
 	Object createProduct(Inventory inventory);
-	boolean updateStock();
-	List<Inventory> fetchQuantity();
+	boolean updateStock(List<Inventory> list);
+	List<Inventory> fetchQuantity(List<String> product_ids);
 }
