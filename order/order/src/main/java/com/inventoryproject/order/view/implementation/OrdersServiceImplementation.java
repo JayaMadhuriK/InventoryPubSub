@@ -53,6 +53,12 @@ public class OrdersServiceImplementation implements OrdersService{
 						.collect(Collectors.toSet());
 				System.out.println("productIds list before publishing orderservcieimpl"+productIdsList);
 				pubSubPublisherService.publishInventory(productIdsList);
+				try {
+					Thread.sleep(15000);
+				} catch (Exception e) {
+					System.out.println("Exception in adding");
+					e.printStackTrace();
+				}
 				List<InventoryDto> fetchQuantity = getInventoryDto();
 				System.out.println("orderservice impl getting list from getInventorydto"+getInventoryDto());
 				if(productIdsList.size() != fetchQuantity.size()) {
@@ -118,14 +124,20 @@ public class OrdersServiceImplementation implements OrdersService{
 
 	@Override
 	public List<InventoryDto> getInventoryDto() {
-		System.out.println("callin get inventory dto in orderservic impl");
-		return new ArrayList<>(inventoryListStore);
+		System.out.println("callin get inventory dto in orderservic impl"+inventoryListStore);
+		return inventoryListStore;
 	}
 
 	@Override
 	public void addInventoryDto(List<InventoryDto> list) {
 		System.out.println("callin add dto in orderservic impl"+list);
-		inventoryListStore.addAll(list);
+		try {
+			inventoryListStore.clear();
+			inventoryListStore.addAll(new ArrayList<>(list));
+			System.out.println("Calling add dto in list 2"+inventoryListStore);
+		}catch(Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override

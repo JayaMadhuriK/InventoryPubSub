@@ -37,6 +37,7 @@ public class PubSubSubscriberService {
 				System.out.println("Inside subscribe inventory response order payload"+payload);
 				List<InventoryDto> list = gson.fromJson(payload, new TypeToken<List<InventoryDto>>(){}.getType());
 				System.out.println("Inside subscribe inventory response order list"+list);
+				Thread.sleep(5000);
 				orderService.addInventoryDto(list);
 				message.ack();
 			}catch(Exception e) {

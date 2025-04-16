@@ -88,7 +88,6 @@ public class PubSubSubscriberService {
 			System.out.println("Inside subscribe inventory pubsubpublisherservice inventory payload"+payload);
 			try {
 				List<String> response = gson.fromJson(payload, new TypeToken<List<String>>(){}.getType());
-				
 				System.out.println("Inside subscribe inventory pubsubpublisherservice inventory response"+response);
 				inventoryService.fetchQuantity(response);
 				message.ack();
